@@ -154,16 +154,16 @@ namespace SAR
 	{
 		// Hook loading function
 		// This is shared for all types of loading (journal, console, auto-load) as well as calls by other mods into the Load function.
-		REL::Relocation<std::uintptr_t> vTable(REL::ID{ 255912 });
-		_LoadGame = vTable.write_vfunc(0x17, &LoadGame_Hook);
+		REL::Relocation<std::uintptr_t> vTable(REL::ID{ 306359 });
+		_LoadGame = vTable.write_vfunc(0x11, &LoadGame_Hook);
 
 		// Hook returning to main menu while in-game
-		_FadeThenMainMenuCallback = REL::GetTrampoline().write_jmp<5>(REL::ID{ 53287 }.address(), FadeThenMainMenuCallback_Hook);
+		_FadeThenMainMenuCallback = REL::GetTrampoline().write_jmp<5>(REL::ID{ 17554 }.address(), FadeThenMainMenuCallback_Hook);
 
 		if ((autoLoadMode || skipIntro) && Settings::GetSingleton()->skipIntroMovie)
 		{
 			// Disable startup movie when auto-loading to speed things up a bit
-			REL::WriteSafeFill(REL::ID{ 36548 }.address() + 0x121, 0x90, 5);
+			REL::WriteSafeFill(REL::ID{ 35549 }.address() + 0xB4, 0x90, 5);
 		}
 	}
 
@@ -242,7 +242,7 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 				assert(manager);
 
 				using LoadImpl_t = bool (RE::BGSSaveLoadManager::*)(const char*, std::int32_t, std::uint32_t, bool);
-				static REL::Relocation<LoadImpl_t> LoadImpl{ REL::ID{ 35728 } };
+				static REL::Relocation<LoadImpl_t> LoadImpl{ REL::ID{ 34819 } };
 				if (!LoadImpl(manager, SAR::autoLoadFileName.c_str(), -1, 0, false))
 				{
 					logger::error("Loading save failed. Setting main menu to visible.");
@@ -261,18 +261,27 @@ void MessageHandler(SKSE::MessagingInterface::Message* a_msg)
 
 extern "C"
 {
-	DLLEXPORT SKSE::PluginVersionData SKSEPlugin_Version = []() {
-		SKSE::PluginVersionData v;
+	DLLEXPORT bool SKSEPlugin_Query(const SKSE::QueryInterface* a_skse, SKSE::PluginInfo* a_info)
+	{
+		a_info->infoVersion = SKSE::PluginInfo::kVersion;
+		a_info->name = Version::NAME.data();
+		a_info->version = REL::Version{ Version::MAJOR, Version::MINOR, Version::PATCH, 0 }.pack();
 
-		v.PluginVersion(REL::Version{ Version::MAJOR, Version::MINOR, Version::PATCH, 0 });
-		v.PluginName(Version::NAME);
-		v.AuthorName(Version::AUTHOR);
-		v.UsesUpdatedStructs();
-		v.UsesAddressLibrary();
-		v.CompatibleVersions({ SKSE::RUNTIME_SSE_1_7_104 });
+		if (a_skse->IsEditor())
+		{
+			logger::critical("Loaded in editor, marking as incompatible"sv);
+			return false;
+		}
 
-		return v;
-	}();
+		const auto ver = a_skse->RuntimeVersion();
+		if (ver < SKSE::RUNTIME_SSE_1_5_39)
+		{
+			logger::critical("Unsupported runtime version {}", ver.string());
+			return false;
+		}
+
+		return true;
+	}
 
 	DLLEXPORT bool SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
 	{
